@@ -22,7 +22,7 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          throw new Error('Invalid credentials');
+          return null;
         }
 
         const user = await prisma.user.findUnique({
@@ -40,10 +40,21 @@ export const authOptions: NextAuthOptions = {
               name: credentials.email.split('@')[0],
             },
           });
-          return newUser;
+
+          return {
+            id: newUser.id,
+            email: newUser.email!,
+            name: newUser.name || undefined,
+            image: newUser.image || undefined,
+          };
         }
 
-        return user;
+        return {
+          id: user.id,
+          email: user.email!,
+          name: user.name || undefined,
+          image: user.image || undefined,
+        };
       },
     }),
   ],

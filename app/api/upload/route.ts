@@ -4,8 +4,10 @@ import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { nanoid } from 'nanoid';
 import { processImage } from '@/lib/processors/image-processor';
-import { processPDF } from '@/lib/processors/pdf-processor';
 import { transcribeAudio } from '@/lib/ai/openai';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
@@ -58,6 +60,7 @@ export async function POST(req: NextRequest) {
         break;
 
       case 'pdf':
+        const { processPDF } = await import('@/lib/processors/pdf-processor');
         const pdfData = await processPDF(buffer);
         result = {
           ...result,
@@ -84,9 +87,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};

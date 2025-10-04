@@ -2,7 +2,9 @@
 
 import React, { useState } from 'react';
 import dynamic from 'next/dynamic';
+import { Node, Edge } from 'reactflow';
 import { Button } from '@/components/ui/button';
+import { NodeData } from '@/types';
 import {
   Plus,
   Video,
@@ -21,8 +23,8 @@ const Canvas = dynamic(() => import('@/components/canvas/Canvas'), {
 });
 
 export default function BoardPage({ params }: { params: { boardId: string } }) {
-  const [nodes, setNodes] = useState([]);
-  const [edges, setEdges] = useState([]);
+  const [nodes, setNodes] = useState<Node<NodeData>[]>([]);
+  const [edges, setEdges] = useState<Edge[]>([]);
   const [showAddMenu, setShowAddMenu] = useState(false);
 
   return (

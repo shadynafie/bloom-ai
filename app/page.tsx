@@ -17,12 +17,12 @@ export default function HomePage() {
             </h1>
           </div>
           <div className="flex gap-4">
-            <Button variant="outline" asChild>
-              <Link href="/login">Sign In</Link>
-            </Button>
-            <Button asChild>
-              <Link href="/register">Get Started</Link>
-            </Button>
+            <Link href="/login">
+              <Button variant="outline">Sign In</Button>
+            </Link>
+            <Link href="/register">
+              <Button>Get Started</Button>
+            </Link>
           </div>
         </header>
 
@@ -36,16 +36,12 @@ export default function HomePage() {
             Let AI organize and transform them into brilliant content.
           </p>
           <div className="flex gap-4 justify-center">
-            <Button size="lg" asChild>
-              <Link href="/register">
-                Start Creating Free
-              </Link>
-            </Button>
-            <Button size="lg" variant="outline" asChild>
-              <Link href="/dashboard">
-                View Dashboard
-              </Link>
-            </Button>
+            <Link href="/register">
+              <Button size="lg">Start Creating Free</Button>
+            </Link>
+            <Link href="/dashboard">
+              <Button size="lg" variant="outline">View Dashboard</Button>
+            </Link>
           </div>
         </div>
 
@@ -104,11 +100,9 @@ export default function HomePage() {
             <p className="text-lg mb-8 opacity-90">
               Join thousands of creators using Bloom AI to create better content faster
             </p>
-            <Button size="lg" variant="secondary" asChild>
-              <Link href="/register">
-                Start Free Trial
-              </Link>
-            </Button>
+            <Link href="/register">
+              <Button size="lg" variant="secondary">Start Free Trial</Button>
+            </Link>
           </div>
         </div>
       </div>
