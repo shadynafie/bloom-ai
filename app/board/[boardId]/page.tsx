@@ -26,6 +26,10 @@ export default function BoardPage({ params }: { params: { boardId: string } }) {
   const [nodes, setNodes] = useState<Node<NodeData>[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const [showVideoDialog, setShowVideoDialog] = useState(false);
+  const [showWebDialog, setShowWebDialog] = useState(false);
+  const [videoUrl, setVideoUrl] = useState('');
+  const [webUrl, setWebUrl] = useState('');
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -65,6 +69,7 @@ export default function BoardPage({ params }: { params: { boardId: string } }) {
             variant="outline"
             className="w-full justify-start"
             size="sm"
+            onClick={() => setShowVideoDialog(true)}
           >
             <Video className="w-4 h-4 mr-2" />
             Video URL
@@ -74,24 +79,49 @@ export default function BoardPage({ params }: { params: { boardId: string } }) {
             variant="outline"
             className="w-full justify-start"
             size="sm"
+            onClick={() => document.getElementById('pdf-upload')?.click()}
           >
             <FileText className="w-4 h-4 mr-2" />
             Upload PDF
           </Button>
+          <input
+            id="pdf-upload"
+            type="file"
+            accept=".pdf"
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files?.[0]) {
+                alert('PDF upload coming soon!');
+              }
+            }}
+          />
 
           <Button
             variant="outline"
             className="w-full justify-start"
             size="sm"
+            onClick={() => document.getElementById('image-upload')?.click()}
           >
             <ImageIcon className="w-4 h-4 mr-2" />
             Upload Image
           </Button>
+          <input
+            id="image-upload"
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files?.[0]) {
+                alert('Image upload coming soon!');
+              }
+            }}
+          />
 
           <Button
             variant="outline"
             className="w-full justify-start"
             size="sm"
+            onClick={() => setShowWebDialog(true)}
           >
             <Globe className="w-4 h-4 mr-2" />
             Web Page
@@ -101,10 +131,22 @@ export default function BoardPage({ params }: { params: { boardId: string } }) {
             variant="outline"
             className="w-full justify-start"
             size="sm"
+            onClick={() => document.getElementById('audio-upload')?.click()}
           >
             <Upload className="w-4 h-4 mr-2" />
             Audio/Voice
           </Button>
+          <input
+            id="audio-upload"
+            type="file"
+            accept="audio/*"
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files?.[0]) {
+                alert('Audio upload coming soon!');
+              }
+            }}
+          />
 
           <div className="pt-4 mt-4 border-t border-border">
             <h3 className="font-semibold mb-2 text-sm">Groups</h3>
@@ -151,16 +193,36 @@ export default function BoardPage({ params }: { params: { boardId: string } }) {
             </div>
 
             <div className="space-y-2">
-              <Button variant="outline" className="w-full justify-start" size="sm">
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                size="sm"
+                onClick={() => alert('AI Summarization coming soon! Select nodes on the canvas first.')}
+              >
                 Summarize Selected
               </Button>
-              <Button variant="outline" className="w-full justify-start" size="sm">
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                size="sm"
+                onClick={() => alert('Key Points extraction coming soon! Select nodes on the canvas first.')}
+              >
                 Extract Key Points
               </Button>
-              <Button variant="outline" className="w-full justify-start" size="sm">
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                size="sm"
+                onClick={() => alert('Content Generation coming soon! Add reference content first.')}
+              >
                 Generate Content
               </Button>
-              <Button variant="outline" className="w-full justify-start" size="sm">
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                size="sm"
+                onClick={() => alert('Source Comparison coming soon! Select multiple nodes first.')}
+              >
                 Compare Sources
               </Button>
             </div>
@@ -187,6 +249,82 @@ export default function BoardPage({ params }: { params: { boardId: string } }) {
           </div>
         </div>
       </div>
+
+      {/* Video URL Dialog */}
+      {showVideoDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-card rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Add Video URL</h3>
+            <Input
+              placeholder="Paste YouTube, TikTok, or Vimeo URL"
+              value={videoUrl}
+              onChange={(e) => setVideoUrl(e.target.value)}
+              className="mb-4"
+            />
+            <div className="flex gap-2">
+              <Button
+                onClick={() => {
+                  if (videoUrl) {
+                    alert('Video processing coming soon!');
+                    setVideoUrl('');
+                    setShowVideoDialog(false);
+                  }
+                }}
+                className="flex-1"
+              >
+                Add Video
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setVideoUrl('');
+                  setShowVideoDialog(false);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Web Page Dialog */}
+      {showWebDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-card rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Add Web Page</h3>
+            <Input
+              placeholder="Paste article or webpage URL"
+              value={webUrl}
+              onChange={(e) => setWebUrl(e.target.value)}
+              className="mb-4"
+            />
+            <div className="flex gap-2">
+              <Button
+                onClick={() => {
+                  if (webUrl) {
+                    alert('Webpage scraping coming soon!');
+                    setWebUrl('');
+                    setShowWebDialog(false);
+                  }
+                }}
+                className="flex-1"
+              >
+                Add Page
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setWebUrl('');
+                  setShowWebDialog(false);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
