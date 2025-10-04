@@ -12,9 +12,9 @@ do
 done
 echo "✅ PostgreSQL is ready!"
 
-# Run Prisma migrations
-echo "🔄 Running database migrations..."
-npx prisma migrate deploy
+# Push Prisma schema to database (creates tables if they don't exist)
+echo "🔄 Pushing database schema..."
+npx prisma db push --skip-generate
 
 echo "🚀 Starting application..."
 exec "$@"
