@@ -1,0 +1,98 @@
+# Bloom AI - Docker Compose Configuration
+# This file orchestrates all containers needed to run Bloom AI
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: bloom-ai-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bloom
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-bloom_secure_password_change_me}
+      POSTGRES_DB: bloom_ai
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bloom -d bloom_ai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bloom-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: bloom-ai-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bloom-network
+
+  # Bloom AI Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bloom-ai-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Database
+      DATABASE_URL: postgresql://bloom:${DB_PASSWORD:-bloom_secure_password_change_me}@postgres:5432/bloom_ai?schema=public
+      DB_HOST: postgres
+
+      # Redis
+      REDIS_URL: redis://redis:6379
+
+      # NextAuth
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-change-this-to-a-secure-random-string-in-production}
+
+      # AI APIs (from .env or secrets)
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+
+      # Node Environment
+      NODE_ENV: production
+
+    volumes:
+      # Persistent uploads
+      - uploads_data:/app/public/uploads
+    ports:
+      - "3000:3000"
+    networks:
+      - bloom-network
+
+# Named volumes for data persistence
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  uploads_data:
+    driver: local
+
+# Network for inter-container communication
+networks:
+  bloom-network:
+    driver: bridge

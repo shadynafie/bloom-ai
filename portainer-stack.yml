@@ -1,0 +1,83 @@
+# Bloom AI - Portainer Stack Configuration
+# Use this in Portainer to deploy Bloom AI from GitHub Container Registry
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bloom
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: bloom_ai
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - bloom-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bloom -d bloom_ai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - bloom-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Bloom AI Application (from GitHub Container Registry)
+  app:
+    image: ghcr.io/YOUR_USERNAME/bloom-ai-codex:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Database
+      DATABASE_URL: postgresql://bloom:${DB_PASSWORD}@postgres:5432/bloom_ai?schema=public
+      DB_HOST: postgres
+
+      # Redis
+      REDIS_URL: redis://redis:6379
+
+      # NextAuth
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+
+      # AI APIs
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+
+      # Environment
+      NODE_ENV: production
+
+    volumes:
+      - uploads_data:/app/public/uploads
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    networks:
+      - bloom-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  uploads_data:
+
+networks:
+  bloom-network:
+    driver: bridge
