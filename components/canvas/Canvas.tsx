@@ -52,6 +52,16 @@ export default function Canvas({
   const [edges, setEdges, handleEdgesChange] = useEdgesState(initialEdges);
   const [selectedNodes, setSelectedNodes] = useState<string[]>([]);
 
+  // Sync with parent when initialNodes change
+  React.useEffect(() => {
+    setNodes(initialNodes);
+  }, [initialNodes, setNodes]);
+
+  // Sync with parent when initialEdges change
+  React.useEffect(() => {
+    setEdges(initialEdges);
+  }, [initialEdges, setEdges]);
+
   const onConnect = useCallback(
     (connection: Connection) => {
       setEdges((eds) => addEdge(connection, eds));
