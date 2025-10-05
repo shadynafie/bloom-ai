@@ -30,6 +30,141 @@ export default function BoardPage({ params }: { params: { boardId: string } }) {
   const [showWebDialog, setShowWebDialog] = useState(false);
   const [videoUrl, setVideoUrl] = useState('');
   const [webUrl, setWebUrl] = useState('');
+  const [processing, setProcessing] = useState(false);
+
+  const addVideoNode = async () => {
+    if (!videoUrl.trim()) return;
+
+    setProcessing(true);
+    try {
+      const response = await fetch('/api/process/video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: videoUrl }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+
+        // Create new video node on canvas
+        const newNode: Node<NodeData> = {
+          id: `video-${Date.now()}`,
+          type: 'VIDEO',
+          position: { x: 250, y: 250 },
+          data: {
+            type: 'VIDEO',
+            content: data.transcript || data.title,
+            metadata: {
+              url: videoUrl,
+              title: data.title,
+              thumbnail: data.thumbnail,
+              duration: data.duration,
+            },
+            group: 'reference',
+          },
+        };
+
+        setNodes((prev) => [...prev, newNode]);
+        setVideoUrl('');
+        setShowVideoDialog(false);
+      } else {
+        alert('Failed to process video. Please check the URL and try again.');
+      }
+    } catch (error) {
+      console.error('Video processing error:', error);
+      alert('Error processing video. Please try again.');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const addWebPageNode = async () => {
+    if (!webUrl.trim()) return;
+
+    setProcessing(true);
+    try {
+      const response = await fetch('/api/process/webpage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: webUrl }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+
+        const newNode: Node<NodeData> = {
+          id: `webpage-${Date.now()}`,
+          type: 'WEB_PAGE',
+          position: { x: 250, y: 250 },
+          data: {
+            type: 'WEB_PAGE',
+            content: data.content,
+            metadata: {
+              url: webUrl,
+              title: data.title,
+              excerpt: data.excerpt,
+            },
+            group: 'reference',
+          },
+        };
+
+        setNodes((prev) => [...prev, newNode]);
+        setWebUrl('');
+        setShowWebDialog(false);
+      } else {
+        alert('Failed to scrape webpage. Please check the URL and try again.');
+      }
+    } catch (error) {
+      console.error('Webpage processing error:', error);
+      alert('Error processing webpage. Please try again.');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleFileUpload = async (file: File, type: 'pdf' | 'image' | 'audio') => {
+    setProcessing(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('type', type);
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+
+        const newNode: Node<NodeData> = {
+          id: `${type}-${Date.now()}`,
+          type: type === 'pdf' ? 'PDF' : type === 'image' ? 'IMAGE' : 'TEXT',
+          position: { x: 250, y: 250 },
+          data: {
+            type: type === 'pdf' ? 'PDF' : type === 'image' ? 'IMAGE' : 'TEXT',
+            content: data.text || data.fileName,
+            metadata: {
+              fileName: data.fileName,
+              url: data.url,
+              ...data.metadata,
+            },
+            group: 'reference',
+          },
+        };
+
+        setNodes((prev) => [...prev, newNode]);
+        alert(`${type.toUpperCase()} uploaded successfully!`);
+      } else {
+        alert(`Failed to upload ${type}. Please try again.`);
+      }
+    } catch (error) {
+      console.error(`${type} upload error:`, error);
+      alert(`Error uploading ${type}. Please try again.`);
+    } finally {
+      setProcessing(false);
+    }
+  };
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -91,7 +226,8 @@ export default function BoardPage({ params }: { params: { boardId: string } }) {
             className="hidden"
             onChange={(e) => {
               if (e.target.files?.[0]) {
-                alert('PDF upload coming soon!');
+                handleFileUpload(e.target.files[0], 'pdf');
+                e.target.value = '';
               }
             }}
           />
@@ -112,7 +248,8 @@ export default function BoardPage({ params }: { params: { boardId: string } }) {
             className="hidden"
             onChange={(e) => {
               if (e.target.files?.[0]) {
-                alert('Image upload coming soon!');
+                handleFileUpload(e.target.files[0], 'image');
+                e.target.value = '';
               }
             }}
           />
@@ -143,7 +280,8 @@ export default function BoardPage({ params }: { params: { boardId: string } }) {
             className="hidden"
             onChange={(e) => {
               if (e.target.files?.[0]) {
-                alert('Audio upload coming soon!');
+                handleFileUpload(e.target.files[0], 'audio');
+                e.target.value = '';
               }
             }}
           />
@@ -259,20 +397,17 @@ export default function BoardPage({ params }: { params: { boardId: string } }) {
               placeholder="Paste YouTube, TikTok, or Vimeo URL"
               value={videoUrl}
               onChange={(e) => setVideoUrl(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && !processing && addVideoNode()}
               className="mb-4"
+              disabled={processing}
             />
             <div className="flex gap-2">
               <Button
-                onClick={() => {
-                  if (videoUrl) {
-                    alert('Video processing coming soon!');
-                    setVideoUrl('');
-                    setShowVideoDialog(false);
-                  }
-                }}
+                onClick={addVideoNode}
                 className="flex-1"
+                disabled={!videoUrl.trim() || processing}
               >
-                Add Video
+                {processing ? 'Processing...' : 'Add Video'}
               </Button>
               <Button
                 variant="outline"
@@ -280,6 +415,7 @@ export default function BoardPage({ params }: { params: { boardId: string } }) {
                   setVideoUrl('');
                   setShowVideoDialog(false);
                 }}
+                disabled={processing}
               >
                 Cancel
               </Button>
@@ -297,20 +433,17 @@ export default function BoardPage({ params }: { params: { boardId: string } }) {
               placeholder="Paste article or webpage URL"
               value={webUrl}
               onChange={(e) => setWebUrl(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && !processing && addWebPageNode()}
               className="mb-4"
+              disabled={processing}
             />
             <div className="flex gap-2">
               <Button
-                onClick={() => {
-                  if (webUrl) {
-                    alert('Webpage scraping coming soon!');
-                    setWebUrl('');
-                    setShowWebDialog(false);
-                  }
-                }}
+                onClick={addWebPageNode}
                 className="flex-1"
+                disabled={!webUrl.trim() || processing}
               >
-                Add Page
+                {processing ? 'Processing...' : 'Add Page'}
               </Button>
               <Button
                 variant="outline"
@@ -318,6 +451,7 @@ export default function BoardPage({ params }: { params: { boardId: string } }) {
                   setWebUrl('');
                   setShowWebDialog(false);
                 }}
+                disabled={processing}
               >
                 Cancel
               </Button>
