@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Node, Edge } from 'reactflow';
 import { Button } from '@/components/ui/button';
-import { NodeData } from '@/types';
+import { Input } from '@/components/ui/input';
+import { NodeData, NodeType } from '@/types';
 import {
   Plus,
   Video,
@@ -49,18 +50,19 @@ export default function BoardPage({ params }: { params: { boardId: string } }) {
         // Create new video node on canvas
         const newNode: Node<NodeData> = {
           id: `video-${Date.now()}`,
-          type: 'VIDEO',
+          type: 'default',
           position: { x: 250, y: 250 },
           data: {
-            type: 'VIDEO',
-            content: data.transcript || data.title,
-            metadata: {
-              url: videoUrl,
-              title: data.title,
-              thumbnail: data.thumbnail,
-              duration: data.duration,
-            },
+            type: NodeType.VIDEO,
+            label: data.title || 'Video',
+            url: videoUrl,
+            thumbnailUrl: data.thumbnail,
+            duration: data.duration,
+            transcription: data.transcript,
+            summary: data.summary,
             group: 'reference',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
           },
         };
 
@@ -94,17 +96,18 @@ export default function BoardPage({ params }: { params: { boardId: string } }) {
 
         const newNode: Node<NodeData> = {
           id: `webpage-${Date.now()}`,
-          type: 'WEB_PAGE',
+          type: 'default',
           position: { x: 250, y: 250 },
           data: {
-            type: 'WEB_PAGE',
+            type: NodeType.WEB_PAGE,
+            label: data.title || 'Web Page',
+            url: webUrl,
+            title: data.title,
             content: data.content,
-            metadata: {
-              url: webUrl,
-              title: data.title,
-              excerpt: data.excerpt,
-            },
+            summary: data.summary,
             group: 'reference',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
           },
         };
 
@@ -137,19 +140,32 @@ export default function BoardPage({ params }: { params: { boardId: string } }) {
       if (response.ok) {
         const data = await response.json();
 
+        const nodeType = type === 'pdf' ? NodeType.PDF : type === 'image' ? NodeType.IMAGE : NodeType.AUDIO;
+
         const newNode: Node<NodeData> = {
           id: `${type}-${Date.now()}`,
-          type: type === 'pdf' ? 'PDF' : type === 'image' ? 'IMAGE' : 'TEXT',
+          type: 'default',
           position: { x: 250, y: 250 },
           data: {
-            type: type === 'pdf' ? 'PDF' : type === 'image' ? 'IMAGE' : 'TEXT',
-            content: data.text || data.fileName,
-            metadata: {
-              fileName: data.fileName,
-              url: data.url,
-              ...data.metadata,
-            },
+            type: nodeType,
+            label: data.fileName || `${type.toUpperCase()} File`,
+            url: data.url,
+            fileName: data.fileName,
+            ...(type === 'pdf' && {
+              extractedText: data.text,
+              pageCount: data.metadata?.pageCount,
+            }),
+            ...(type === 'image' && {
+              description: data.metadata?.description,
+              extractedText: data.text,
+            }),
+            ...(type === 'audio' && {
+              transcription: data.text,
+              duration: data.metadata?.duration,
+            }),
             group: 'reference',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
           },
         };
 
