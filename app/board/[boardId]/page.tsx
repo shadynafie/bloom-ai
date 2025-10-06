@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Node, Edge } from 'reactflow';
 import { Button } from '@/components/ui/button';
@@ -26,12 +26,220 @@ const Canvas = dynamic(() => import('@/components/canvas/Canvas'), {
 export default function BoardPage({ params }: { params: { boardId: string } }) {
   const [nodes, setNodes] = useState<Node<NodeData>[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
-  const [showAddMenu, setShowAddMenu] = useState(false);
+  const [boardTitle, setBoardTitle] = useState('Untitled Board');
+  const [boardDescription, setBoardDescription] = useState<string | null>(null);
+  const [loadingBoard, setLoadingBoard] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [credits, setCredits] = useState<{
+    total: number;
+    used: number;
+    remaining: number;
+  } | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [showVideoDialog, setShowVideoDialog] = useState(false);
   const [showWebDialog, setShowWebDialog] = useState(false);
   const [videoUrl, setVideoUrl] = useState('');
   const [webUrl, setWebUrl] = useState('');
   const [processing, setProcessing] = useState(false);
+
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const hasInitializedRef = useRef(false);
+
+  const creditProgress = useMemo(() => {
+    if (!credits || credits.total === 0) return 0;
+    return Math.min((credits.remaining / credits.total) * 100, 100);
+  }, [credits]);
+
+  const creditLabel = useMemo(() => {
+    if (!credits) return '—';
+    return `${credits.remaining} / ${credits.total}`;
+  }, [credits]);
+
+  useEffect(() => {
+    const loadBoard = async () => {
+      setLoadingBoard(true);
+      setLoadError(null);
+
+      try {
+        const response = await fetch(`/api/boards/${params.boardId}`);
+
+        if (!response.ok) {
+          throw new Error('Failed to load board');
+        }
+
+        const board = await response.json();
+
+        setBoardTitle(board.title ?? 'Untitled Board');
+        setBoardDescription(board.description ?? null);
+
+        if (Array.isArray(board.nodes)) {
+          const deserializedNodes: Node<NodeData>[] = board.nodes.map((node: any) => {
+            const rawData = (node.data ?? {}) as NodeData;
+            const resolvedType = (rawData?.type as NodeType) ?? node.type ?? NodeType.TEXT;
+
+            return {
+              id: node.id,
+              type: resolvedType,
+              position: (node.position as { x: number; y: number }) ?? { x: 0, y: 0 },
+              data: {
+                ...rawData,
+                type: resolvedType,
+                label: rawData?.label ?? 'Untitled',
+                createdAt:
+                  rawData?.createdAt ??
+                  (node.createdAt ? new Date(node.createdAt).toISOString() : new Date().toISOString()),
+                updatedAt:
+                  rawData?.updatedAt ??
+                  (node.updatedAt ? new Date(node.updatedAt).toISOString() : new Date().toISOString()),
+              } as NodeData,
+              width: node.width ?? undefined,
+              height: node.height ?? undefined,
+            };
+          });
+
+          setNodes(deserializedNodes);
+        } else {
+          setNodes([]);
+        }
+
+        if (Array.isArray(board.edges)) {
+          const deserializedEdges: Edge[] = board.edges.map((edge: any) => ({
+            id: edge.id,
+            source: edge.source,
+            target: edge.target,
+            type: edge.type ?? 'default',
+            animated: edge.animated ?? false,
+            label: edge.label ?? undefined,
+            data: edge.data ?? undefined,
+          }));
+
+          setEdges(deserializedEdges);
+        } else {
+          setEdges([]);
+        }
+      } catch (error) {
+        console.error('Failed to load board:', error);
+        setLoadError('Unable to load this board. Please refresh or try again later.');
+        setNodes([]);
+        setEdges([]);
+      } finally {
+        setLoadingBoard(false);
+      }
+    };
+
+    const loadCredits = async () => {
+      try {
+        const response = await fetch('/api/settings');
+
+        if (!response.ok) {
+          throw new Error('Failed to load credits');
+        }
+
+        const data = await response.json();
+
+        if (data?.user) {
+          const total = data.user.credits ?? 0;
+          const used = data.user.creditsUsed ?? 0;
+          const remaining = Math.max(total - used, 0);
+
+          setCredits({ total, used, remaining });
+        }
+      } catch (error) {
+        console.error('Failed to load credits:', error);
+      }
+    };
+
+    loadBoard();
+    loadCredits();
+  }, [params.boardId]);
+
+  useEffect(() => {
+    hasInitializedRef.current = false;
+  }, [params.boardId]);
+
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const persistBoard = useCallback(
+    async (nodesToPersist: Node<NodeData>[], edgesToPersist: Edge[]) => {
+      if (!nodesToPersist && !edgesToPersist) return;
+
+      try {
+        setIsSaving(true);
+        setSaveError(null);
+
+        const payload = {
+          nodes: nodesToPersist.map((node) => ({
+            id: node.id,
+            type: (node.type as NodeType) ?? node.data.type,
+            position: node.position,
+            data: {
+              ...node.data,
+              updatedAt: new Date().toISOString(),
+            },
+            width: node.width,
+            height: node.height,
+          })),
+          edges: edgesToPersist.map((edge) => ({
+            id: edge.id,
+            source: edge.source,
+            target: edge.target,
+            type: edge.type ?? 'default',
+            animated: edge.animated ?? false,
+            label: edge.label,
+            data: edge.data ?? undefined,
+          })),
+        };
+
+        const response = await fetch(`/api/boards/${params.boardId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to save board');
+        }
+      } catch (error) {
+        console.error('Failed to save board state:', error);
+        setSaveError('Unable to save changes');
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [params.boardId]
+  );
+
+  useEffect(() => {
+    if (loadingBoard || loadError) return;
+
+    if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+      return;
+    }
+
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = setTimeout(() => {
+      persistBoard(nodes, edges);
+      saveTimeoutRef.current = null;
+    }, 1000);
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
+      }
+    };
+  }, [nodes, edges, loadingBoard, loadError, persistBoard]);
 
   const addVideoNode = async () => {
     if (!videoUrl.trim()) return;
@@ -46,20 +254,25 @@ export default function BoardPage({ params }: { params: { boardId: string } }) {
 
       if (response.ok) {
         const data = await response.json();
+        const metadata = (data.metadata ?? {}) as Record<string, any>;
+        const transcription = data.transcription ?? data.transcript;
+        const platform = (metadata.platform as 'youtube' | 'vimeo' | 'tiktok' | 'other') ?? 'other';
 
         // Create new video node on canvas
         const newNode: Node<NodeData> = {
           id: `video-${Date.now()}`,
-          type: 'default',
+          type: NodeType.VIDEO,
           position: { x: 250, y: 250 },
           data: {
             type: NodeType.VIDEO,
-            label: data.title || 'Video',
+            label: metadata.title ?? 'Video',
             url: videoUrl,
-            thumbnailUrl: data.thumbnail,
-            duration: data.duration,
-            transcription: data.transcript,
+            thumbnailUrl: metadata.thumbnailUrl,
+            duration: metadata.duration,
+            transcription,
             summary: data.summary,
+            platform,
+            metadata,
             group: 'reference',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
@@ -93,18 +306,20 @@ export default function BoardPage({ params }: { params: { boardId: string } }) {
 
       if (response.ok) {
         const data = await response.json();
+        const metadata = (data.metadata ?? {}) as Record<string, any>;
 
         const newNode: Node<NodeData> = {
           id: `webpage-${Date.now()}`,
-          type: 'default',
+          type: NodeType.WEB_PAGE,
           position: { x: 250, y: 250 },
           data: {
             type: NodeType.WEB_PAGE,
-            label: data.title || 'Web Page',
+            label: metadata.title ?? 'Web Page',
             url: webUrl,
-            title: data.title,
+            title: metadata.title,
             content: data.content,
             summary: data.summary,
+            favicon: metadata.favicon,
             group: 'reference',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
@@ -144,7 +359,7 @@ export default function BoardPage({ params }: { params: { boardId: string } }) {
 
         const newNode: Node<NodeData> = {
           id: `${type}-${Date.now()}`,
-          type: 'default',
+          type: nodeType,
           position: { x: 250, y: 250 },
           data: {
             type: nodeType,
@@ -187,7 +402,31 @@ export default function BoardPage({ params }: { params: { boardId: string } }) {
       {/* Top Toolbar */}
       <div className="h-14 border-b border-border flex items-center justify-between px-4 bg-card">
         <div className="flex items-center gap-4">
-          <h1 className="font-semibold">Untitled Board</h1>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="font-semibold">
+                {loadingBoard ? 'Loading board…' : boardTitle}
+              </h1>
+              {loadError && (
+                <span className="text-xs text-red-500">Failed to load</span>
+              )}
+            </div>
+            {boardDescription && !loadingBoard && (
+              <p className="text-xs text-muted-foreground truncate max-w-xs">
+                {boardDescription}
+              </p>
+            )}
+            {!loadingBoard && (
+              <div className="flex items-center gap-2 mt-1">
+                {isSaving && (
+                  <span className="text-xs text-muted-foreground">Saving…</span>
+                )}
+                {saveError && !isSaving && (
+                  <span className="text-xs text-red-500">{saveError}</span>
+                )}
+              </div>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm">
               <Users className="w-4 h-4 mr-2" />
@@ -330,6 +569,13 @@ export default function BoardPage({ params }: { params: { boardId: string } }) {
             onNodesChange={setNodes}
             onEdgesChange={setEdges}
           />
+          {loadError && !loadingBoard && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="bg-card/90 border border-destructive/40 text-destructive px-4 py-2 rounded-md shadow-lg backdrop-blur">
+                {loadError}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right Sidebar - AI Assistant */}
@@ -394,10 +640,15 @@ export default function BoardPage({ params }: { params: { boardId: string } }) {
             <div className="pt-4 border-t border-border">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-medium">Credits</span>
-                <span className="text-sm text-muted-foreground">850 / 1000</span>
+                <span className="text-sm text-muted-foreground">
+                  {creditLabel}
+                </span>
               </div>
               <div className="w-full bg-muted rounded-full h-2">
-                <div className="bg-purple-600 h-2 rounded-full" style={{ width: '85%' }} />
+                <div
+                  className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${creditProgress}%` }}
+                />
               </div>
             </div>
           </div>
